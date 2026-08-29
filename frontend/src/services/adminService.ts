@@ -8,6 +8,11 @@ export interface GeneratedSecretCode {
   expiresAt: string | null;
 }
 
+export interface CodeGenerationStatus {
+  remainingCount: number;
+  resetsAt: string | null;
+}
+
 function toFriendlyError(
   error: { message: string } | null,
 ): FriendlyError | null {
@@ -17,6 +22,31 @@ function toFriendlyError(
 
   return {
     message: "Something went wrong. Please try again.",
+  };
+}
+
+export async function getCodeGenerationStatus(): Promise<{
+  data: CodeGenerationStatus | null;
+  error: FriendlyError | null;
+}> {
+  const { data, error } = await supabase.rpc("admin_code_generation_status");
+
+  if (error) {
+    console.error("admin_code_generation_status failed:", error);
+    return { data: null, error: toFriendlyError(error) };
+  }
+
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row) {
+    return { data: null, error: { message: "Something went wrong. Please try again." } };
+  }
+
+  return {
+    data: {
+      remainingCount: Number(row.remaining_count),
+      resetsAt: row.resets_at ?? null,
+    },
+    error: null,
   };
 }
 
