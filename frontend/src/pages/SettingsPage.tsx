@@ -19,10 +19,6 @@ export function SettingsPage() {
       </div>
 
       {profile?.role === "admin" && <AdminPanel />}
-
-      <p className="font-ui text-sm text-ink-soft">
-        Theme preferences are added in a later phase.
-      </p>
     </div>
   );
 }
