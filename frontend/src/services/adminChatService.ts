@@ -16,7 +16,7 @@ export async function listAdminChatSessions(): Promise<{
   const { data, error } = await supabase
     .from("chat_sessions")
     .select("id, user_id, admin_id, secret_code_id, created_at, expires_at, last_activity_at, ended_at, status")
-    .in("status", ["active", "suspended"])
+    .eq("status", "active")
     .eq("admin_id", userId)
     .order("created_at", { ascending: false });
 
