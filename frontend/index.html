@@ -5,15 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="referrer" content="strict-origin-when-cross-origin" />
     <meta name="color-scheme" content="light dark" />
-
-    <!--
-      GitHub Pages cannot serve custom HTTP response headers, so
-      this meta tag is the ONLY CSP mechanism available to us.
-      It cannot express frame-ancestors, report-uri, or several
-      other directives — that gap is documented in SECURITY.md
-      rather than papered over. connect-src is scoped to
-      Supabase only.
-    -->
     <meta
       http-equiv="Content-Security-Policy"
       content="default-src 'self';
@@ -26,41 +17,14 @@
                 form-action 'self';
                 object-src 'none'"
     />
-
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Literata:ital,opsz,wght@0,18..144,400;0,18..144,500;1,18..144,400&display=swap"
-      rel="stylesheet"
-    />
-
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Literata:ital,opsz,wght@0,18..144,400;0,18..144,500;1,18..144,400&display=swap" rel="stylesheet" />
     <title>MindTrack — your private journal</title>
   </head>
   <body>
     <div id="root"></div>
-
-    <!--
-      Matching half of public/404.html's redirect: decodes the
-      "?/real/path" encoding back into a normal history entry
-      before React Router mounts, so the router sees the path
-      the user actually requested.
-      (Technique: https://github.com/rafgraph/spa-github-pages)
-    -->
-    <script>
-      (function (l) {
-        if (l.search[1] === "/") {
-          var decoded = l.search
-            .slice(1)
-            .split("&")
-            .map(function (s) {
-              return s.replace(/~and~/g, "&");
-            })
-            .join("?");
-          history.replaceState(null, null, l.pathname.slice(0, -1) + decoded + l.hash);
-        }
-      })(window.location);
-    </script>
-
+    <script src="/gh-pages-redirect.js"></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
