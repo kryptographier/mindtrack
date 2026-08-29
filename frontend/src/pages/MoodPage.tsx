@@ -105,7 +105,7 @@ export function MoodPage() {
 
         <div>
           <label htmlFor="mood-note" className="mb-1.5 block font-ui text-sm text-ink-soft">Note (optional)</label>
-          <input id="mood-note" type="text" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Or paste a private-chat code here" className="w-full rounded-sm border border-line bg-paper px-3 py-2 font-ui text-sm text-ink focus-visible:border-accent" />
+          <input id="mood-note" type="text" value={note} onChange={(e) => setNote(e.target.value)} className="w-full rounded-sm border border-line bg-paper px-3 py-2 font-ui text-sm text-ink focus-visible:border-accent" />
           {noteError && <p role="alert" className="mt-1 font-ui text-sm text-danger">{noteError}</p>}
         </div>
 
