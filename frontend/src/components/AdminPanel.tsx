@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { generateSecretCode } from "../services/adminService";
+import { generateSecretCode, getCodeGenerationStatus } from "../services/adminService";
 import { listAdminChatSessions, revokeSecretCode, resumeChatSession, suspendChatSession } from "../services/adminChatService";
 import type { ChatSession } from "../types/domain";
 
@@ -27,6 +27,17 @@ export function AdminPanel() {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(true);
   const [busySessionId, setBusySessionId] = useState<string | null>(null);
+  const [remainingCodes, setRemainingCodes] = useState<number | null>(null);
+  const [codeLimitResetsAt, setCodeLimitResetsAt] = useState<string | null>(null);
+
+  async function refreshCodeGenerationStatus() {
+    const result = await getCodeGenerationStatus();
+    if (result.error) setError(result.error.message);
+    else if (result.data) {
+      setRemainingCodes(result.data.remainingCount);
+      setCodeLimitResetsAt(result.data.resetsAt);
+    }
+  }
 
   async function refreshSessions() {
     const result = await listAdminChatSessions();
@@ -37,7 +48,11 @@ export function AdminPanel() {
 
   useEffect(() => {
     void refreshSessions();
-    const interval = window.setInterval(() => void refreshSessions(), 10000);
+    void refreshCodeGenerationStatus();
+    const interval = window.setInterval(() => {
+      void refreshSessions();
+      void refreshCodeGenerationStatus();
+    }, 10000);
     return () => window.clearInterval(interval);
   }, []);
 
@@ -49,11 +64,16 @@ export function AdminPanel() {
     setGenerating(true);
     const { data, error: genError } = await generateSecretCode(selectedExpiry);
     setGenerating(false);
-    if (genError) return setError(genError.message);
+    if (genError) {
+      setError(genError.message);
+      void refreshCodeGenerationStatus();
+      return;
+    }
     if (!data) return setError("Something went wrong. Please try again.");
     setGeneratedCode(data.plaintextCode);
     setGeneratedCodeId(data.id);
     setGeneratedExpiresAt(data.expiresAt);
+    void refreshCodeGenerationStatus();
   }
 
   async function handleRevokeCode() {
@@ -79,6 +99,10 @@ export function AdminPanel() {
         <div>
           <h3 className="font-journal text-lg text-ink">Private chat access</h3>
           <p className="mt-1 font-ui text-sm text-ink-soft">Generate a code with a server-enforced expiry. The first user to redeem it owns it until expiry.</p>
+        </div>
+        <div className="rounded-sm border border-line bg-paper-raised px-3 py-2 font-ui text-xs text-ink-soft">
+          <span className="font-medium text-ink">Codes remaining:</span> {remainingCodes ?? "—"} / 30
+          {codeLimitResetsAt && <> · resets {formatter.format(new Date(codeLimitResetsAt))}</>}
         </div>
         <select aria-label="Code expiry" value={selectedExpiry} onChange={(event) => setSelectedExpiry(Number(event.target.value))} disabled={generating} className="w-full rounded-sm border border-line bg-paper px-3 py-2 font-ui text-sm text-ink">
           {EXPIRY_OPTIONS.map((option) => <option key={option.minutes} value={option.minutes}>{option.label}</option>)}
