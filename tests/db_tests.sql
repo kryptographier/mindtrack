@@ -9,18 +9,13 @@ insert into auth.users (id, email) values
   ('33333333-3333-3333-3333-333333333333', 'carol@example.com');
 update public.profiles set role = 'admin' where id = '22222222-2222-2222-2222-222222222222';
 
--- ===========================================================
--- BASIC AUTHORIZATION
--- ===========================================================
 set role authenticated;
 select set_config('test.uid', '11111111-1111-1111-1111-111111111111', false);
 select set_config('test.session_id', 'aaaaaaaa-0000-0000-0000-000000000001', false);
 select public.touch_diary_session();
 insert into public.diary_entries (user_id, content) values ('11111111-1111-1111-1111-111111111111', 'Alice private entry');
 select set_config('test.uid', '33333333-3333-3333-3333-333333333333', false);
-do $$ begin
-  perform test_assert(not exists (select 1 from public.diary_entries where content = 'Alice private entry'), 'RLS hides Alice diary data from Carol');
-end $$;
+do $$ begin perform test_assert(not exists (select 1 from public.diary_entries where content = 'Alice private entry'), 'RLS hides Alice diary data from Carol'); end $$;
 reset role;
 
 -- ===========================================================
@@ -28,8 +23,7 @@ reset role;
 -- ===========================================================
 set role authenticated;
 select set_config('test.uid', '11111111-1111-1111-1111-111111111111', false);
-do $$
-begin
+do $$ begin
   begin
     perform public.admin_generate_secret_code(60);
     perform test_assert(false, 'unreachable: non-admin cannot generate a code');
@@ -40,22 +34,18 @@ end $$;
 
 select set_config('test.uid', '22222222-2222-2222-2222-222222222222', false);
 do $$
-declare v_code text; v_code_id uuid; v_session uuid; v_session_again uuid; v_other uuid; v_result record;
+declare v_code text; v_code_id uuid; v_session uuid; v_session_again uuid; v_result record;
 begin
   select plaintext_code, id into v_code, v_code_id from public.admin_generate_secret_code(120);
   perform test_assert(v_code is not null and v_code_id is not null, 'Admin generates a code with an expiry');
-
   select set_config('test.uid', '11111111-1111-1111-1111-111111111111', false);
   select chat_session_id into v_session from public.redeem_secret_code(v_code);
   perform test_assert(v_session is not null, 'First redemption creates a session');
-
   select chat_session_id into v_session_again from public.redeem_secret_code(v_code);
   perform test_assert(v_session_again = v_session, 'Same user can re-enter the same code and reopen the same active session');
-
-  select set_config('test.uid', '33333333-3333-3333-333333333333', false);
+  select set_config('test.uid', '33333333-3333-3333-3333-333333333333', false);
   select * into v_result from public.redeem_secret_code(v_code);
   perform test_assert(v_result.chat_session_id is null and v_result.error_message = 'invalid or expired code', 'A different user cannot steal a bound code');
-
   select set_config('test.uid', '22222222-2222-2222-2222-222222222222', false);
   perform public.admin_revoke_secret_code(v_code_id);
   select set_config('test.uid', '11111111-1111-1111-1111-111111111111', false);
@@ -63,7 +53,6 @@ begin
   perform test_assert(v_result.chat_session_id is null and v_result.error_message = 'invalid or expired code', 'Revoked code cannot be redeemed');
 end $$;
 
--- Expiry is server-side and independent of the browser.
 select set_config('test.uid', '22222222-2222-2222-2222-222222222222', false);
 do $$
 declare v_code text; v_id uuid; v_result record;
@@ -88,16 +77,13 @@ begin
   select set_config('test.uid', '11111111-1111-1111-1111-111111111111', false);
   select chat_session_id into v_session from public.redeem_secret_code(v_code);
   perform test_assert(v_session is not null, 'Chat session exists for message tests');
-
   select message_id into v_message from public.send_message(v_session, 'hello from alice');
   perform test_assert(v_message is not null, 'Canonical send_message RPC succeeds');
-
   select set_config('test.uid', '22222222-2222-2222-2222-222222222222', false);
   select count(*) into v_rows from public.read_and_delete_message(v_message);
   perform test_assert(v_rows = 1, 'Recipient can atomically read and delete a message');
   select count(*) into v_rows from public.read_and_delete_message(v_message);
   perform test_assert(v_rows = 0, 'A consumed message cannot be read twice');
-
   select set_config('test.uid', '33333333-3333-3333-3333-333333333333', false);
   select * into v_result from public.send_message(v_session, 'unauthorized');
   perform test_assert(v_result.error_message = 'invalid session', 'Non-participant cannot send to another chat');
@@ -108,24 +94,20 @@ end $$;
 -- ===========================================================
 select set_config('test.uid', '22222222-2222-2222-2222-222222222222', false);
 do $$
-declare v_code text; v_code_id uuid; v_session uuid; v_status text; v_result record;
+declare v_code text; v_code_id uuid; v_session uuid; v_status text; v_revoked boolean; v_result record;
 begin
   select plaintext_code, id into v_code, v_code_id from public.admin_generate_secret_code(120);
   select set_config('test.uid', '11111111-1111-1111-1111-111111111111', false);
   select chat_session_id into v_session from public.redeem_secret_code(v_code);
   perform test_assert(v_session is not null, 'Session created for back-navigation test');
-
-  -- Leaving the UI for Journal does not call end_chat_session.
   select chat_session_id into v_session from public.redeem_secret_code(v_code);
   perform test_assert(v_session is not null, 'Code remains usable while the session is active');
-
   perform public.end_chat_session(v_session);
   select status into v_status from public.chat_sessions where id = v_session;
   perform test_assert(v_status = 'ended', 'Explicit End session marks the session ended');
-
   reset role;
-  select revoked_at into v_status from public.secret_codes where id = v_code_id;
-  perform test_assert(v_status is not null, 'Explicit End session revokes the associated code');
+  select (revoked_at is not null) into v_revoked from public.secret_codes where id = v_code_id;
+  perform test_assert(v_revoked, 'Explicit End session revokes the associated code');
   set role authenticated;
   select * into v_result from public.redeem_secret_code(v_code);
   perform test_assert(v_result.chat_session_id is null and v_result.error_message = 'invalid or expired code', 'Ended session code cannot be reused');
@@ -141,16 +123,13 @@ begin
   select plaintext_code into v_code from public.admin_generate_secret_code(120);
   select set_config('test.uid', '11111111-1111-1111-1111-111111111111', false);
   select chat_session_id into v_session from public.redeem_secret_code(v_code);
-
   select set_config('test.uid', '22222222-2222-2222-2222-222222222222', false);
   perform public.admin_suspend_chat_session(v_session);
   select status into v_status from public.chat_sessions where id = v_session;
   perform test_assert(v_status = 'suspended', 'Admin can suspend an active session');
-
   select set_config('test.uid', '11111111-1111-1111-1111-111111111111', false);
   select * into v_result from public.send_message(v_session, 'blocked while suspended');
   perform test_assert(v_result.error_message is not null, 'Suspended session rejects messages');
-
   select set_config('test.uid', '22222222-2222-2222-2222-222222222222', false);
   perform public.admin_resume_chat_session(v_session);
   select status into v_status from public.chat_sessions where id = v_session;
@@ -195,6 +174,5 @@ begin
     perform test_assert(sqlerrm = 'not authorized', 'Non-admin cannot resume sessions');
   end;
 end $$;
-
 reset role;
 \echo 'ALL AUTOMATED BACKEND TESTS PASSED'
