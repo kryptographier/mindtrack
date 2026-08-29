@@ -22,7 +22,7 @@ reset role;
 -- SECRET CODE LIFECYCLE
 -- ===========================================================
 set role authenticated;
-perform set_config('test.uid', '11111111-1111-1111-1111-111111111111', false);
+select set_config('test.uid', '11111111-1111-1111-1111-111111111111', false);
 do $$ begin
   begin
     perform public.admin_generate_secret_code(60);
@@ -53,7 +53,7 @@ begin
   perform test_assert(v_result.chat_session_id is null and v_result.error_message = 'invalid or expired code', 'Revoked code cannot be redeemed');
 end $$;
 
-perform set_config('test.uid', '22222222-2222-2222-2222-222222222222', false);
+select set_config('test.uid', '22222222-2222-2222-2222-222222222222', false);
 do $$
 declare v_code text; v_id uuid; v_result record;
 begin
@@ -69,7 +69,7 @@ end $$;
 -- ===========================================================
 -- CHAT MESSAGE CONTRACT + PARTICIPANT SECURITY
 -- ===========================================================
-perform set_config('test.uid', '22222222-2222-2222-2222-222222222222', false);
+select set_config('test.uid', '22222222-2222-2222-2222-222222222222', false);
 do $$
 declare v_code text; v_session uuid; v_message uuid; v_rows int; v_result record;
 begin
@@ -92,7 +92,7 @@ end $$;
 -- ===========================================================
 -- SESSION BACK/JOURNAL SEMANTICS + EXPLICIT END
 -- ===========================================================
-perform set_config('test.uid', '22222222-2222-2222-2222-222222222222', false);
+select set_config('test.uid', '22222222-2222-2222-2222-222222222222', false);
 do $$
 declare v_code text; v_code_id uuid; v_session uuid; v_status text; v_revoked boolean; v_result record;
 begin
@@ -116,7 +116,7 @@ end $$;
 -- ===========================================================
 -- ADMIN SUSPEND / RESUME
 -- ===========================================================
-perform set_config('test.uid', '22222222-2222-2222-2222-222222222222', false);
+select set_config('test.uid', '22222222-2222-2222-2222-222222222222', false);
 do $$
 declare v_code text; v_session uuid; v_result record; v_status text;
 begin
@@ -139,7 +139,7 @@ end $$;
 -- ===========================================================
 -- EXPIRY / IDLE ENFORCEMENT
 -- ===========================================================
-perform set_config('test.uid', '22222222-2222-2222-2222-222222222222', false);
+select set_config('test.uid', '22222222-2222-2222-2222-222222222222', false);
 do $$
 declare v_code text; v_session uuid; v_result record;
 begin
@@ -158,7 +158,7 @@ end $$;
 -- ===========================================================
 -- ADMIN RPC AUTHORIZATION
 -- ===========================================================
-perform set_config('test.uid', '11111111-1111-1111-1111-111111111111', false);
+select set_config('test.uid', '11111111-1111-1111-1111-111111111111', false);
 do $$
 begin
   begin
