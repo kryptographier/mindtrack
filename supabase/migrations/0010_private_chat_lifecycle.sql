@@ -9,6 +9,24 @@ alter table public.chat_sessions add constraint chat_sessions_status_check check
 create index if not exists secret_codes_redeemed_by_idx on public.secret_codes(redeemed_by);
 create index if not exists chat_sessions_secret_code_idx on public.chat_sessions(secret_code_id);
 
+-- Supabase normally keeps pgcrypto in the extensions schema. The CI stub
+-- installs it in public, so normalize the schema before using qualified
+-- extension functions. pgcrypto is relocatable on supported PostgreSQL.
+create schema if not exists extensions;
+do $$
+begin
+  if exists (
+    select 1 from pg_extension e
+    join pg_namespace n on n.oid = e.extnamespace
+    where e.extname = 'pgcrypto' and n.nspname <> 'extensions'
+  ) then
+    alter extension pgcrypto set schema extensions;
+  elsif not exists (select 1 from pg_extension where extname = 'pgcrypto') then
+    create extension pgcrypto with schema extensions;
+  end if;
+end;
+$$;
+
 -- 0008 created persistent codes with NULL expiry. Do not leave those
 -- codes immortal: give legacy rows a finite grace period based on their
 -- original creation time. Newly generated codes always use the admin's
@@ -130,7 +148,6 @@ revoke all on function public.touch_chat_session(uuid) from public;
 grant execute on function public.touch_chat_session(uuid) to authenticated;
 
 drop function if exists public.send_chat_message(uuid, text);
-
 drop function if exists public.end_chat_session(uuid);
 create function public.end_chat_session(p_session_id uuid)
 returns void
