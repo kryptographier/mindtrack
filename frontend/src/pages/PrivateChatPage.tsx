@@ -139,8 +139,8 @@ export function PrivateChatPage() {
   }
 
   return (
-    <div className="terminal flex min-h-screen w-full max-w-full flex-col overflow-hidden bg-term-bg">
-      <div className="border-b border-term-line px-3 py-3 font-mono text-xs text-term-dim sm:px-4">
+    <div className="terminal flex h-[100dvh] max-h-[100dvh] w-full max-w-full flex-col overflow-hidden bg-term-bg">
+      <div className="shrink-0 border-b border-term-line px-3 py-3 font-mono text-xs text-term-dim sm:px-4">
         <div className="flex min-w-0 items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="truncate text-term-text">MINDTRACK / PRIVATE SESSION</p>
@@ -151,7 +151,7 @@ export function PrivateChatPage() {
         </div>
       </div>
 
-      <div ref={scrollRef} className="min-h-0 w-full max-w-full flex-1 overflow-x-hidden overflow-y-auto px-3 py-4 sm:px-4">
+      <div ref={scrollRef} className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-3 py-4 sm:px-4">
         {messages.map((m) => (
           <div key={m.id} className="mb-4 min-w-0 max-w-full">
             <p className="break-words font-mono text-xs text-term-accent">
@@ -163,7 +163,7 @@ export function PrivateChatPage() {
         ))}
       </div>
 
-      <div className="w-full border-t border-term-line p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+      <div className="shrink-0 w-full border-t border-term-line p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         {inputError && <p className="mb-2 break-words font-mono text-xs text-danger">{inputError}</p>}
         <div className="flex min-w-0 items-end gap-2">
           <span className="shrink-0 pb-2 font-mono text-sm text-term-accent">$</span>
