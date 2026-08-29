@@ -9,6 +9,14 @@ alter table public.chat_sessions add constraint chat_sessions_status_check check
 create index if not exists secret_codes_redeemed_by_idx on public.secret_codes(redeemed_by);
 create index if not exists chat_sessions_secret_code_idx on public.chat_sessions(secret_code_id);
 
+-- 0008 created persistent codes with NULL expiry. Do not leave those
+-- codes immortal: give legacy rows a finite grace period based on their
+-- original creation time. Newly generated codes always use the admin's
+-- explicitly selected expiry.
+update public.secret_codes
+set expires_at = created_at + interval '120 minutes'
+where expires_at is null;
+
 -- ---------------------------------------------------------
 -- Expiring, reusable, first-user-bound secret codes.
 -- ---------------------------------------------------------
@@ -57,15 +65,9 @@ begin
   if p_code is null or btrim(p_code) = '' then return query select null::uuid, 'invalid or expired code'::text; return; end if;
   if not public.check_rate_limit('redeem_code:' || auth.uid()::text, 10, interval '15 minutes') then return query select null::uuid, 'too many attempts, please wait before trying again'::text; return; end if;
   if not public.check_rate_limit('redeem_code:global', 50, interval '1 hour') then return query select null::uuid, 'too many attempts, please wait before trying again'::text; return; end if;
-
   v_hash := encode(extensions.digest(upper(btrim(p_code))::text, 'sha256'::text), 'hex');
-  select id, created_by, expires_at, revoked_at, redeemed_by into v_code
-  from public.secret_codes where code_hash = v_hash for update;
-
-  if not found or v_code.revoked_at is not null or v_code.expires_at <= now() then
-    return query select null::uuid, 'invalid or expired code'::text; return;
-  end if;
-
+  select id, created_by, expires_at, revoked_at, redeemed_by into v_code from public.secret_codes where code_hash = v_hash for update;
+  if not found or v_code.revoked_at is not null or v_code.expires_at <= now() then return query select null::uuid, 'invalid or expired code'::text; return; end if;
   if v_code.redeemed_by is null then
     update public.secret_codes set redeemed_by = auth.uid(), attempt_count = attempt_count + 1 where id = v_code.id;
   elsif v_code.redeemed_by <> auth.uid() then
@@ -73,12 +75,7 @@ begin
   else
     update public.secret_codes set attempt_count = attempt_count + 1 where id = v_code.id;
   end if;
-
-  select * into v_session
-  from public.chat_sessions
-  where secret_code_id = v_code.id and user_id = auth.uid() and status = 'active'
-  order by created_at desc limit 1 for update;
-
+  select * into v_session from public.chat_sessions where secret_code_id = v_code.id and user_id = auth.uid() and status = 'active' order by created_at desc limit 1 for update;
   if found then
     if now() >= v_session.expires_at or now() - v_session.last_activity_at > (v_idle_minutes || ' minutes')::interval then
       update public.chat_sessions set status = 'expired' where id = v_session.id;
@@ -87,21 +84,15 @@ begin
       return query select v_session.id, null::text; return;
     end if;
   end if;
-
-  if exists (select 1 from public.chat_sessions where secret_code_id = v_code.id and user_id = auth.uid() and status = 'suspended') then
-    return query select null::uuid, 'private session is suspended'::text; return;
-  end if;
-
+  if exists (select 1 from public.chat_sessions where secret_code_id = v_code.id and user_id = auth.uid() and status = 'suspended') then return query select null::uuid, 'private session is suspended'::text; return; end if;
   insert into public.chat_sessions(user_id, admin_id, secret_code_id, created_at, expires_at, last_activity_at, status)
-  values(auth.uid(), v_code.created_by, v_code.id, now(), v_code.expires_at, now(), 'active')
-  returning id into v_session_id;
+  values(auth.uid(), v_code.created_by, v_code.id, now(), v_code.expires_at, now(), 'active') returning id into v_session_id;
   return query select v_session_id, null::text;
 end;
 $$;
 revoke all on function public.redeem_secret_code(text) from public;
 grant execute on function public.redeem_secret_code(text) to authenticated;
 
--- Use CREATE OR REPLACE: these functions are referenced by RLS policies.
 create or replace function public.is_chat_session_valid(p_session_id uuid)
 returns boolean
 language plpgsql security definer stable set search_path = public
@@ -130,10 +121,7 @@ begin
   if not found then return false; end if;
   if v_row.user_id <> auth.uid() and v_row.admin_id <> auth.uid() then return false; end if;
   if v_row.status <> 'active' then return false; end if;
-  if now() >= v_row.expires_at or now() - v_row.last_activity_at > (v_idle_minutes || ' minutes')::interval then
-    update public.chat_sessions set status = 'expired' where id = p_session_id;
-    return false;
-  end if;
+  if now() >= v_row.expires_at or now() - v_row.last_activity_at > (v_idle_minutes || ' minutes')::interval then update public.chat_sessions set status = 'expired' where id = p_session_id; return false; end if;
   update public.chat_sessions set last_activity_at = now() where id = p_session_id;
   return true;
 end;
@@ -141,11 +129,8 @@ $$;
 revoke all on function public.touch_chat_session(uuid) from public;
 grant execute on function public.touch_chat_session(uuid) to authenticated;
 
--- The canonical message RPC is send_message(), defined in migration 0005.
--- Remove only the accidental frontend-facing alias if it exists.
 drop function if exists public.send_chat_message(uuid, text);
 
--- Ending is different from navigating back to Journal: ending revokes the code.
 drop function if exists public.end_chat_session(uuid);
 create function public.end_chat_session(p_session_id uuid)
 returns void
@@ -164,20 +149,16 @@ revoke all on function public.end_chat_session(uuid) from public;
 grant execute on function public.end_chat_session(uuid) to authenticated;
 
 create or replace function public.admin_suspend_chat_session(p_session_id uuid)
-returns void
-language plpgsql security definer set search_path = public
-as $$
-begin
+returns void language plpgsql security definer set search_path = public
+as $$ begin
   if not public.is_admin() then raise exception 'not authorized'; end if;
   update public.chat_sessions set status = 'suspended' where id = p_session_id and status = 'active' and admin_id = auth.uid();
-end;
-$$;
+end; $$;
 revoke all on function public.admin_suspend_chat_session(uuid) from public;
 grant execute on function public.admin_suspend_chat_session(uuid) to authenticated;
 
 create or replace function public.admin_resume_chat_session(p_session_id uuid)
-returns void
-language plpgsql security definer set search_path = public
+returns void language plpgsql security definer set search_path = public
 as $$
 declare v_row record;
 begin
@@ -187,29 +168,22 @@ begin
   if v_row.status <> 'suspended' then return; end if;
   if v_row.expires_at <= now() then update public.chat_sessions set status = 'expired' where id = p_session_id; return; end if;
   update public.chat_sessions set status = 'active', last_activity_at = now() where id = p_session_id;
-end;
-$$;
+end; $$;
 revoke all on function public.admin_resume_chat_session(uuid) from public;
 grant execute on function public.admin_resume_chat_session(uuid) to authenticated;
 
 create or replace function public.admin_revoke_secret_code(p_id uuid)
-returns void
-language plpgsql security definer set search_path = public
-as $$
-begin
+returns void language plpgsql security definer set search_path = public
+as $$ begin
   if not public.is_admin() then raise exception 'not authorized'; end if;
   update public.secret_codes set revoked_at = coalesce(revoked_at, now()) where id = p_id and created_by = auth.uid();
-end;
-$$;
+end; $$;
 revoke all on function public.admin_revoke_secret_code(uuid) from public;
 grant execute on function public.admin_revoke_secret_code(uuid) to authenticated;
 
--- Realtime Postgres Changes requires the table in this publication.
-do $$
-begin
+do $$ begin
   if exists (select 1 from pg_publication where pubname = 'supabase_realtime')
      and not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'ephemeral_messages') then
     alter publication supabase_realtime add table public.ephemeral_messages;
   end if;
-end;
-$$;
+end; $$;
