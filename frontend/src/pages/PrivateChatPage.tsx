@@ -139,39 +139,39 @@ export function PrivateChatPage() {
   }
 
   return (
-    <div className="terminal flex h-screen flex-col bg-term-bg">
-      <div className="border-b border-term-line px-4 py-3 font-mono text-xs text-term-dim">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="text-term-text">MINDTRACK / PRIVATE SESSION</p>
+    <div className="terminal flex min-h-screen w-full max-w-full flex-col overflow-hidden bg-term-bg">
+      <div className="border-b border-term-line px-3 py-3 font-mono text-xs text-term-dim sm:px-4">
+        <div className="flex min-w-0 items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="truncate text-term-text">MINDTRACK / PRIVATE SESSION</p>
             <p>status: connected</p>
             <p>expires: {countdownLabel}</p>
           </div>
-          <button type="button" onClick={() => navigate("/journal")} className="text-term-accent hover:underline">[ Journal ]</button>
+          <button type="button" onClick={() => navigate("/journal")} className="shrink-0 text-term-accent hover:underline">[ Journal ]</button>
         </div>
       </div>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">
+      <div ref={scrollRef} className="min-h-0 w-full max-w-full flex-1 overflow-x-hidden overflow-y-auto px-3 py-4 sm:px-4">
         {messages.map((m) => (
-          <div key={m.id} className="mb-4">
-            <p className="font-mono text-xs text-term-accent">
+          <div key={m.id} className="mb-4 min-w-0 max-w-full">
+            <p className="break-words font-mono text-xs text-term-accent">
               {roleLabel(m.senderId)}@private:~$
               <span className="ml-2 text-term-dim">{timeFormatter.format(new Date(m.createdAt))}</span>
             </p>
-            <p className="whitespace-pre-wrap font-mono text-sm text-term-text">{m.content}</p>
+            <p className="break-words whitespace-pre-wrap font-mono text-sm text-term-text">{m.content}</p>
           </div>
         ))}
       </div>
 
-      <div className="border-t border-term-line p-3">
-        {inputError && <p className="mb-2 font-mono text-xs text-danger">{inputError}</p>}
-        <div className="flex items-end gap-2">
-          <span className="pb-2 font-mono text-sm text-term-accent">$</span>
-          <textarea value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={handleKeyDown} rows={1} aria-label="Message" placeholder="type message…" className="flex-1 resize-none border-none bg-transparent font-mono text-sm text-term-text placeholder:text-term-dim focus-visible:outline-none" />
+      <div className="w-full border-t border-term-line p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        {inputError && <p className="mb-2 break-words font-mono text-xs text-danger">{inputError}</p>}
+        <div className="flex min-w-0 items-end gap-2">
+          <span className="shrink-0 pb-2 font-mono text-sm text-term-accent">$</span>
+          <textarea value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={handleKeyDown} rows={1} aria-label="Message" placeholder="type message…" className="min-w-0 flex-1 resize-none border-none bg-transparent font-mono text-sm text-term-text placeholder:text-term-dim focus-visible:outline-none" />
         </div>
       </div>
 
-      <button type="button" onClick={handleEnd} className="border-t border-term-line px-4 py-2 text-left font-mono text-xs text-term-dim hover:text-danger">
+      <button type="button" onClick={handleEnd} className="w-full shrink-0 border-t border-term-line px-4 py-2 text-left font-mono text-xs text-term-dim hover:text-danger">
         End session (revokes code)
       </button>
     </div>
