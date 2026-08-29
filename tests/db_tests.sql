@@ -10,11 +10,11 @@ insert into auth.users (id, email) values
 update public.profiles set role = 'admin' where id = '22222222-2222-2222-2222-222222222222';
 
 set role authenticated;
-perform set_config('test.uid', '11111111-1111-1111-1111-111111111111', false);
+select set_config('test.uid', '11111111-1111-1111-1111-111111111111', false);
 select set_config('test.session_id', 'aaaaaaaa-0000-0000-0000-000000000001', false);
 select public.touch_diary_session();
 insert into public.diary_entries (user_id, content) values ('11111111-1111-1111-1111-111111111111', 'Alice private entry');
-perform set_config('test.uid', '33333333-3333-3333-3333-333333333333', false);
+select set_config('test.uid', '33333333-3333-3333-3333-333333333333', false);
 do $$ begin perform test_assert(not exists (select 1 from public.diary_entries where content = 'Alice private entry'), 'RLS hides Alice diary data from Carol'); end $$;
 reset role;
 
@@ -32,7 +32,7 @@ do $$ begin
   end;
 end $$;
 
-perform set_config('test.uid', '22222222-2222-2222-2222-222222222222', false);
+select set_config('test.uid', '22222222-2222-2222-2222-222222222222', false);
 do $$
 declare v_code text; v_code_id uuid; v_session uuid; v_session_again uuid; v_result record;
 begin
