@@ -1,0 +1,24 @@
+name: Supabase keep-alive
+
+# Supabase Free-tier projects auto-pause after 7 days with no
+# API traffic (verified Aug 2026 — see docs/architecture.md).
+# This workflow pings a trivial, unauthenticated Edge Function
+# once a day so the project never goes quiet long enough to
+# trigger that. It touches no data and requires no secrets.
+
+on:
+  schedule:
+    - cron: "17 3 * * *" # once daily; time chosen arbitrarily to avoid the top of the hour
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping keepalive endpoint
+        run: |
+          curl -sf "${{ vars.SUPABASE_PROJECT_URL }}/functions/v1/keepalive" \
+            -o /dev/null -w "status=%{http_code}\n"

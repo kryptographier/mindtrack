@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>MindTrack</title>
+    <!--
+      GitHub Pages serves this file for any path it doesn't
+      recognize as a real static file — i.e. every client-side
+      route (/journal, /mood, /settings) hit via direct
+      navigation or a page refresh, since GH Pages has no
+      server-side rewrite rules.
+
+      This is the standard spa-github-pages technique
+      (https://github.com/rafgraph/spa-github-pages): the real
+      path is encoded into a query string that survives the
+      redirect, then decoded by the matching script in
+      index.html before React Router mounts.
+
+      pathSegmentsToKeep = 1 because this is a GitHub Pages
+      PROJECT site (served at https://<user>.github.io/mindtrack/,
+      not at the domain root). If this app is ever moved to a
+      custom domain or a user/org root site, change this to 0 —
+      otherwise every route will 404 after this fix is "working".
+    -->
+    <script>
+      var pathSegmentsToKeep = 1;
+      var l = window.location;
+      l.replace(
+        l.protocol +
+          "//" +
+          l.hostname +
+          (l.port ? ":" + l.port : "") +
+          l.pathname
+            .split("/")
+            .slice(0, 1 + pathSegmentsToKeep)
+            .join("/") +
+          "/?/" +
+          l.pathname
+            .slice(1)
+            .split("/")
+            .slice(pathSegmentsToKeep)
+            .join("/")
+            .replace(/&/g, "~and~") +
+          (l.search ? "&" + l.search.slice(1).replace(/&/g, "~and~") : "") +
+          l.hash
+      );
+    </script>
+  </head>
+  <body>
+    Redirecting…
+  </body>
+</html>

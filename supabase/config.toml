@@ -1,0 +1,26 @@
+# Supabase project configuration.
+#
+# verify_jwt defaults to true for every Edge Function (confirmed
+# via Supabase docs, Aug 2026) — a caller must send a valid JWT
+# or the platform rejects the request with 401 before the
+# function's own code ever runs. The keepalive function is
+# called by a plain scheduled GitHub Actions curl with no auth
+# headers at all (see .github/workflows/keepalive.yml), which
+# would fail against the default. Disabling verify_jwt here is
+# safe specifically because keepalive does no privileged work
+# and touches no data — it only returns {"status":"ok"} to
+# generate API traffic that prevents the Free-tier 7-day pause.
+#
+# cleanup similarly needs to run from an unattended GitHub
+# Actions schedule with no user session to attach a JWT from.
+# Unlike keepalive, cleanup DOES perform privileged deletes, so
+# — instead of relying on the platform JWT check — it verifies
+# its own shared secret (CLEANUP_SECRET) inside the function
+# body before doing anything (see
+# supabase/functions/cleanup/index.ts). Turning off the platform
+# JWT check here does not turn off that application-level check.
+[functions.keepalive]
+verify_jwt = false
+
+[functions.cleanup]
+verify_jwt = false

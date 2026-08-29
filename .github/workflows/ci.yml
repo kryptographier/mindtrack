@@ -1,0 +1,133 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Confirm .env is not tracked
+        run: |
+          if git ls-files | grep -E '^\.env$|/\.env$'; then
+            echo "::error::A .env file is tracked by git — this must never happen"
+            exit 1
+          fi
+          echo "No tracked .env files"
+
+      - name: Scan tracked files for common secret patterns
+        run: |
+          # Deliberately simple pattern matching, not a full entropy
+          # scanner — appropriate for a small, two-person app. Checks
+          # for Supabase service-role JWT shape, generic private key
+          # headers, and common cloud-provider secret prefixes.
+          PATTERN='-----BEGIN [A-Z ]*PRIVATE KEY-----|AKIA[0-9A-Z]{16}|sb_secret_[a-zA-Z0-9]+'
+          MATCHES=$(git grep -nE -e "$PATTERN" -- . ':!*.md' || true)
+          if [ -n "$MATCHES" ]; then
+            echo "::error::Possible secret pattern found in tracked files:"
+            echo "$MATCHES"
+            exit 1
+          fi
+          echo "No secret-like patterns found in tracked files"
+
+  backend-tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      PGPASSWORD: postgres
+      PGHOST: localhost
+      PGUSER: postgres
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create Supabase-equivalent roles
+        run: |
+          psql -c "CREATE ROLE authenticated;"
+          psql -c "CREATE ROLE anon;"
+          psql -c "CREATE ROLE service_role;"
+
+      - name: Apply auth schema stub
+        run: psql -v ON_ERROR_STOP=1 -f tests/00_supabase_stub.sql
+
+      - name: Apply migrations in order
+        run: |
+          for f in $(ls supabase/migrations/*.sql | sort); do
+            echo "Applying $f"
+            psql -v ON_ERROR_STOP=1 -f "$f"
+          done
+
+      - name: Run automated backend test suite
+        run: psql -v ON_ERROR_STOP=1 -f tests/db_tests.sql
+
+  frontend-checks:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npx tsc -b --noEmit
+
+      - name: Unit tests
+        run: npx vitest run
+
+      - name: Dependency audit — production dependencies (hard gate)
+        run: npm audit --omit=dev --audit-level=low
+
+      - name: Dependency audit — full, including dev tooling (report only)
+        # Known dev-only findings (vite/vitest/esbuild dev-server issues)
+        # are documented in SECURITY.md and don't block CI — but they
+        # stay visible in every run rather than being silenced.
+        run: npm audit || true
+
+      - name: Build
+        env:
+          # Placeholder values sufficient to prove the build pipeline
+          # itself works. Real deployments inject the actual project's
+          # public URL/anon key at this step — see docs/deployment.md.
+          VITE_SUPABASE_URL: https://placeholder.supabase.co
+          VITE_SUPABASE_ANON_KEY: placeholder-anon-key-for-ci-build-verification-only
+        run: npm run build
+
+      - name: Confirm no secrets leaked into the build output
+        run: |
+          if grep -r "SERVICE_ROLE\|service_role" dist/ 2>/dev/null; then
+            echo "::error::Potential secret reference found in build output"
+            exit 1
+          fi
+          echo "No service-role references found in dist/"

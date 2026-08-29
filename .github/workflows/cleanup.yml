@@ -1,0 +1,27 @@
+name: Supabase cleanup
+
+# Removes stale bookkeeping rows (expired session-tracking,
+# rate-limit windows, old chat metadata) — see
+# supabase/migrations/0007_cleanup.sql. Runs daily; the target
+# function is gated by a shared secret, not Supabase's platform
+# JWT check, since there's no user session in a scheduled job.
+
+on:
+  schedule:
+    - cron: "45 3 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger cleanup
+        env:
+          CLEANUP_SECRET: ${{ secrets.CLEANUP_SECRET }}
+        run: |
+          curl -sf "${{ vars.SUPABASE_PROJECT_URL }}/functions/v1/cleanup" \
+            -H "X-Cleanup-Secret: $CLEANUP_SECRET" \
+            -o /dev/null -w "status=%{http_code}\n"
