@@ -1,6 +1,4 @@
-// Domain types mirroring supabase/migrations. Kept close to the
-// schema so a mismatch is a compile error, not a runtime surprise.
-
+// Domain types mirroring the database schema.
 export type Mood = "great" | "good" | "okay" | "low" | "difficult";
 
 export const MOOD_OPTIONS: readonly { value: Mood; label: string }[] = [
@@ -40,11 +38,12 @@ export interface ChatSession {
   id: string;
   user_id: string;
   admin_id: string;
+  secret_code_id: string | null;
   created_at: string;
   expires_at: string;
   last_activity_at: string;
   ended_at: string | null;
-  status: "active" | "ended" | "expired";
+  status: "active" | "suspended" | "ended" | "expired";
 }
 
 export interface ChatMessage {
